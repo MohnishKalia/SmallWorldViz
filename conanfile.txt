@@ -1,0 +1,5 @@
+[requires]
+sqlite3/latest
+
+[generators]
+compiler_args
