@@ -2,6 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define EH_SQL                                       \
+    if (rc != SQLITE_OK)                             \
+    {                                                \
+        fprintf(stderr, "SQL error: %s\n", zErrMsg); \
+        sqlite3_free(zErrMsg);                       \
+    }
+
 enum Type
 {
     Monster = 0x1,
@@ -36,10 +43,11 @@ void printCardInfo(FILE *sink, CardInfo *ci)
     fprintf(sink, "\n");
 }
 
-static int callback(void *NotUsed, int argc, char **argv, char **azColName)
+int gi = 0;
+
+static int callback(void *cis, int argc, char **argv, char **azColName)
 {
-    char *ptr;
-    long type = strtol(argv[2], &ptr, 10);
+    int type = atoi(argv[2]);
     if ((type & Monster) != 0 && (type & ExtraDeck) == 0)
     {
         CardInfo ci = {
@@ -52,6 +60,8 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName)
             .def = argv[7],
         };
         printCardInfo(stdout, &ci);
+        CardInfo** arr = cis;
+        arr[gi++] = &ci;
     }
     return 0;
 }
@@ -78,16 +88,29 @@ int main(void)
         return (1);
     }
 
-    char *statement = "select d.id, name, type, race, attribute, level, atk, def from datas d inner join texts t on d.id = t.id";
+    // char *len_stmt = "select count(*) from datas d inner join texts t on d.id = t.id";
+    // sqlite3_stmt *ppStmt;
+    // rc = sqlite3_prepare_v2(db, len_stmt, -1, &ppStmt, NULL);
+    // EH_SQL
+    // rc = sqlite3_step(ppStmt);
+    // EH_SQL
+    // int rowcount = sqlite3_column_int(ppStmt, 0);
+    // EH_SQL
+    // rc = sqlite3_finalize(ppStmt);
+    // EH_SQL
+
+    CardInfo cis[10631] = {0};
+    char *data_stmt = "select d.id, name, type, race, attribute, level, atk, def from datas d inner join texts t on d.id = t.id";
     FILE *out = fopen("cards.txt", "w");
+    FILE *old_out = stdout;
     stdout = out;
-    rc = sqlite3_exec(db, statement, callback, 0, &zErrMsg);
+    rc = sqlite3_exec(db, data_stmt, callback, &cis, &zErrMsg);
     fclose(out);
-    if (rc != SQLITE_OK)
-    {
-        fprintf(stderr, "SQL error: %s\n", zErrMsg);
-        sqlite3_free(zErrMsg);
-    }
+    stdout = old_out;
+    EH_SQL
+    printf("Number of cards: %d\n", gi + 1);
+    printf("Card 100:\n");
+    printCardInfo(stdout, &(cis[100]));
     sqlite3_close(db);
     return 0;
 }
